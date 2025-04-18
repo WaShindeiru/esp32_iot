@@ -1,7 +1,7 @@
 create database weather_iot;
 create user iot_user with password 'aha987';
 GRANT ALL PRIVILEGES ON DATABASE weather_iot TO iot_user;
-use weather_iot;
+\c weather_iot;
 
 CREATE TABLE sensor_data (
                              id SERIAL PRIMARY KEY,
@@ -36,7 +36,6 @@ CREATE TABLE IF NOT EXISTS tokens
 (
     hash    bytea PRIMARY KEY,
     device_id bigint                      NOT NULL REFERENCES devices ON DELETE CASCADE,
-    expiry  timestamp(0) with time zone NOT NULL,
     scope   text                        not null
 );
 
