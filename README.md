@@ -1,6 +1,6 @@
 # esp32_iot
 
-A Esp32-based IoT project that reads temperature and humidity data from a sensor DHT11 and sends it to a Go server via http. Esp32 project is built ESP-IDF and FreeRTOS
+ESP32-based IoT project that reads temperature and humidity data from a DHT11 sensor and sends it to a Go server via HTTP. This project was built with the help of ESP-IDF and FreeRTOS. The data is preserved in a PostgreSQL database. There might be multiple devices sending the data, and each device has its own API key.
 
 ## How to run:
 ### Server
