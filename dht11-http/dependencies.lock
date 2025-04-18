@@ -1,0 +1,18 @@
+dependencies:
+  idf:
+    source:
+      type: idf
+    version: 5.4.1
+  parabuzzle/http_rest_client:
+    component_hash: e5235176e536c6b552ddcad0547bcff11aee81cef25e18ede92221f1a0451068
+    dependencies: []
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 0.1.4
+direct_dependencies:
+- idf
+- parabuzzle/http_rest_client
+manifest_hash: d295f0c65ec5e46d3c2d5bf7b4b627d61ac87aed5dfe3bdaf855ed6d77bf9f86
+target: esp32
+version: 2.0.0
