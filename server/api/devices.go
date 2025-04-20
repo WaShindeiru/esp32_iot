@@ -57,3 +57,29 @@ func (app *application) RegisterDeviceHandler(w http.ResponseWriter, r *http.Req
 		app.serverErrorResponse(w, r, err)
 	}
 }
+
+func (app *application) registerDeviceHelper(name string, password string) (*data.Token, error) {
+	device := &data.Device{
+		Name:      name,
+		CreatedAt: time.Now(),
+		LastSeen:  time.Now(),
+	}
+
+	err := device.Password.Set(password)
+	if err != nil {
+		return nil, err
+	}
+
+	device, err = app.repository.Devices.Insert(device)
+	if err != nil {
+		return nil, err
+	}
+
+	var token *data.Token
+	token, err = app.repository.Tokens.NewPlaceholder(device.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	return token, nil
+}

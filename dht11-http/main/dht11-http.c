@@ -22,10 +22,13 @@
 #define DHT11_PIN 5
 #define ZERO_TIMESTAMP 32
  
-#define URL "http://192.168.0.145:8080/sensorData"
+// #define URL "http://192.168.0.145:8080/sensorData"
 
+#define SERVER_IP "192.168.0.145"
 #define WIFI_SSID "ssid"
 #define WIFI_PASSWORD "password"
+
+#define URL "http://" SERVER_IP ":8080/sensorData"
  
 static const char *TAG = "main";
  
@@ -224,6 +227,7 @@ void app_main(void)
 
   char json_string[256];
   char buffer[50];
+  int return_value = -1;
 
   set_output();
 
@@ -235,7 +239,12 @@ void app_main(void)
 
   while (1)
   {
-    dht11_read(&data, 1000);
+    return_value = dht11_read(&data, 1000);
+    while (return_value == -1) {
+        vTaskDelay(pdMS_TO_TICKS( 1000 ));
+        return_value = dht11_read(&data, 1000);
+    }
+
     ESP_LOGI(TAG, "Humidity: %.2f, Temperature: %.2f", data.humidity, data.temperature);
 
     strcpy(json_string, "{");
@@ -250,7 +259,7 @@ void app_main(void)
 
     http_rest_recv_json_t response_buffer = {0};
 
-    ESP_LOGI(TAG, "Fetching Data to URL: %s", URL);
+    ESP_LOGI(TAG, "Sending Data to URL: %s", URL);
     ret = http_rest_client_post_json_mine(URL, json_temp, &response_buffer);
     int status_code = response_buffer.status_code;
 
@@ -276,7 +285,7 @@ void app_main(void)
         http_rest_client_cleanup_json(&response_buffer);
       }
     }
-    ESP_LOGI(TAG, "Looping in 5 minutes...");
-    vTaskDelay(60000 * 5 / portTICK_PERIOD_MS);
+    ESP_LOGI(TAG, "Looping in 30 seconds...");
+    vTaskDelay(pdMS_TO_TICKS( 30000 ));
   }
 }

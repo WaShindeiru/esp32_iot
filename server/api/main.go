@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"server/data"
@@ -19,6 +20,15 @@ func main() {
 	app := &application{
 		repository: data.NewRepository(db),
 		logger:     logger,
+	}
+
+	token, err := app.registerDeviceHelper("esp32_2", "temp")
+
+	if err != nil {
+		logger.Fatal(err.Error())
+	} else {
+		// token: AAAQEAYEAUDAOCAJBIFQYDIOB4
+		logger.Print(fmt.Sprintf("token: %s", token.Plaintext))
 	}
 
 	err = app.serve()

@@ -54,5 +54,33 @@ func (m TokenRepository) New(userID int64) (*Token, error) {
 	}
 
 	err = m.Insert(token)
+	if err != nil {
+		return nil, err
+	}
+
+	return token, nil
+}
+
+func (m TokenRepository) NewPlaceholder(userId int64) (*Token, error) {
+	token := &Token{
+		DeviceId: userId,
+		Scope:    "default",
+	}
+
+	bytes := make([]byte, 16)
+	for i := range bytes {
+		bytes[i] = byte(i)
+	}
+
+	token.Plaintext = base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(bytes)
+	hash := sha256.Sum256([]byte(token.Plaintext))
+
+	token.Hash = hash[:]
+
+	err := m.Insert(token)
+	if err != nil {
+		return nil, err
+	}
+
 	return token, nil
 }

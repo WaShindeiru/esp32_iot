@@ -33,7 +33,7 @@ esp_err_t http_rest_client_post_mine(char *url, char *body_data, http_rest_recv_
   client = esp_http_client_init(&config);
 
   esp_http_client_set_header(client, "Content-Type", "application/json");
-  esp_http_client_set_header(client, "Authorization", "Bearer 43O7DCZJHPS66NVVRKXRJ3SCDY");
+  esp_http_client_set_header(client, "Authorization", "Bearer AAAQEAYEAUDAOCAJBIFQYDIOB4");
 
   esp_http_client_set_post_field(client, body_data, strlen(body_data));
 

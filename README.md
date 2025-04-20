@@ -4,7 +4,7 @@ ESP32-based IoT project that reads temperature and humidity data from a DHT11 se
 
 ## How to run:
 ### Server
-- go to server directory
+<!-- - go to server directory
 ```bash
 cd server
 ```
@@ -12,6 +12,15 @@ cd server
 ```bash
 go mod download
 go run api/main.go
+``` -->
+- make sure Docker is installed
+- go to server directory
+```bash
+cd server
+```
+Run the docker conatiners
+```bash
+docker compose up
 ```
 
 ### Esp-32
@@ -20,11 +29,17 @@ go run api/main.go
 ```bash
 cd dht11-http
 ```
+- modify the following defines. `SERVER_IP` is the IP address of the go server. `WIFI_SSID` and `WIFI_PASSWORD` are the ssid and password of the wifi network credentials.
+```c
+#define SERVER_IP "192.168.0.145"
+#define WIFI_SSID "ssid"
+#define WIFI_PASSWORD "password"
+```
 - build the project
 ```bash
 idf.py build
 ```
-- Upload binary into the board
+- Upload the project into esp32 board
 ```bash
 idf.py flash -p <esp32 port>
 ```

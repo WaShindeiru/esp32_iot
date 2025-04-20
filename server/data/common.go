@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"os"
 	"time"
 )
 
@@ -17,7 +19,15 @@ type Repository struct {
 }
 
 func OpenDB() (*sql.DB, error) {
-	connection_string := "postgresql://iot_user:aha987@localhost:5432/weather_iot"
+	connection_string := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable",
+		os.Getenv("DB_USER"),
+		os.Getenv("DB_PASSWORD"),
+		os.Getenv("DB_HOST"),
+		os.Getenv("DB_PORT"),
+		os.Getenv("DB_NAME"))
+
+	//connection_string := "postgresql://postgres:postgres@db:5432/appdb?sslmode=disable"
+	//connection_string := "postgresql://iot_user:aha987@localhost:5432/weather_iot"
 	db, err := sql.Open("postgres", connection_string)
 
 	if err != nil {
