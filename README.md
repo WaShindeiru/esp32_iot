@@ -24,6 +24,7 @@ docker compose up
 ```
 
 ### Esp-32
+- DHT11 Data pin should be connected to pin 5 of esp32, no pull-up resistor is required
 - make sure ESP-IDF is installed
 - go to esp32 directory
 ```bash

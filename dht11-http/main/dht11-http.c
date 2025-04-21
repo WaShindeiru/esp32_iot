@@ -13,10 +13,11 @@
 #include "http_rest_json_client.h"
 #include "cJSON.h"
 
-#include "driver/gpio.h"
 #include "sdkconfig.h"
+#include "dht11.h"
 
 #include "helpers.h"
+#include "freertos/queue.h"
 
 
 #define DHT11_PIN 5
@@ -31,147 +32,116 @@
 #define URL "http://" SERVER_IP ":8080/sensorData"
  
 static const char *TAG = "main";
- 
+
 typedef struct
 {
-    int dht11_pin;
     float temperature;
     float humidity;
-} dht11_t;
- 
-int wait_for_state(dht11_t dht11,int state,int timeout)
-{
-    gpio_set_direction(dht11.dht11_pin, GPIO_MODE_INPUT);
-    int count = 0;
+} sensor_data;
+
+QueueHandle_t sensorDataQueue;
+
+static void vDhtTask(void *pvParameters) {
+    dht11_t data = {
+        .dht11_pin = DHT11_PIN,
+        .humidity = 0,
+        .temperature = 0
+    };
+
+    set_output();
+
+    sensor_data data_temp;
+
+    int return_value;
+    BaseType_t status;
     
-    while(gpio_get_level(dht11.dht11_pin) != state)
-    {
-        if(count >= timeout) return -1;
-        count += 2;
-        esp_rom_delay_us(2);
-        
+    for (;;) {
+        return_value = dht11_read(&data, 1000);
+        while (return_value == -1) {
+            vTaskDelay(pdMS_TO_TICKS( 1000 ));
+            return_value = dht11_read(&data, 1000);
+        }
+
+        data_temp.temperature = data.temperature;
+        data_temp.humidity = data.humidity;
+
+        ESP_LOGI(TAG, "Humidity: %.2f, Temperature: %.2f", data.humidity, data.temperature);
+
+        ESP_LOGI(TAG, "Waiting to send");
+        status = xQueueSendToBack( sensorDataQueue, &data_temp, portMAX_DELAY );
+
+        if (status != pdPASS) {
+            ESP_LOGI(TAG, "Failed to send to the sensorDataQueue");
+        } else {
+            ESP_LOGI(TAG, "Sent to the sensorDataQueue");
+        }
+
+        ESP_LOGI(TAG, "Looping in 30 seconds...");
+        vTaskDelay(pdMS_TO_TICKS( 30000 ));
     }
 
-    return  count;
-}
- 
-void hold_low(dht11_t dht11,int hold_time_us)
-{
-    gpio_set_direction(dht11.dht11_pin,GPIO_MODE_OUTPUT);
-    gpio_set_level(dht11.dht11_pin,0);
-    esp_rom_delay_us(hold_time_us);
-    gpio_set_level(dht11.dht11_pin,1);
-}
- 
-void hold_low_ms(dht11_t dht11,int hold_time_ms)
-{
-    gpio_set_direction(dht11.dht11_pin,GPIO_MODE_OUTPUT);
-    gpio_set_level(dht11.dht11_pin,0);
-    vTaskDelay(pdMS_TO_TICKS(hold_time_ms));
-    gpio_set_level(dht11.dht11_pin,1);
-}
- 
- 
-void set_input(void) {
-    gpio_config_t io_conf = {
-        .intr_type = GPIO_INTR_DISABLE,
-        .mode = GPIO_MODE_INPUT,
-        .pin_bit_mask = (1ULL << DHT11_PIN),
-        .pull_down_en = 0,
-        .pull_up_en = 1
-    };
-
-    gpio_config(&io_conf);
-}
- 
-void set_output(void) {
-    gpio_config_t io_conf = {
-        .intr_type = GPIO_INTR_DISABLE,
-        .mode = GPIO_MODE_OUTPUT,
-        .pin_bit_mask = (1ULL << DHT11_PIN),
-        .pull_down_en = 0,
-        .pull_up_en = 1
-    };
-
-    gpio_config(&io_conf);
-}
- 
-int dht11_read(dht11_t *dht11,int connection_timeout)
-{
-    int waited = 0;
-    int one_duration = 0;
-    int zero_duration = 0;
-    int timeout_counter = 0;
-
-    uint8_t received_data[5] =
-    {
-        0x00,
-        0x00,
-        0x00,
-        0x00,
-        0x00
-    };
-
-    while(timeout_counter < connection_timeout)
-    {
-        timeout_counter++;
-        hold_low_ms(*dht11, 18);
-        
-        waited = wait_for_state(*dht11,0,40);
-
-        if(waited == -1)
-        {
-            ESP_LOGE("DHT11:","Failed at phase 1");
-            vTaskDelay(pdMS_TO_TICKS( 20 ));
-            continue;
-        } 
+};
 
 
-        waited = wait_for_state(*dht11,1,90);
-        if(waited == -1)
-        {
-            ESP_LOGE("DHT11:","Failed at phase 2");
-            vTaskDelay(pdMS_TO_TICKS( 20 ));
-            continue;
-        } 
-        
-        waited = wait_for_state(*dht11,0,90);
-        if(waited == -1)
-        {
-            ESP_LOGE("DHT11:","Failed at phase 3");
-            vTaskDelay(pdMS_TO_TICKS( 20 ));
-            continue;
-        } 
-        break;
-        
-    }
+static void vHttpTask(void *pvParameters) {
+    char json_string[256];
+    char buffer[50];
+
+    sensor_data data_temp;
+    BaseType_t status;
+    esp_err_t ret;
+
+    for (;;) {
+        ESP_LOGI(TAG, "Waiting to receive");
+        status = xQueueReceive(sensorDataQueue, &data_temp, portMAX_DELAY);
+
+        if (status != pdPASS) {
+            ESP_LOGI(TAG, "Failed to receive from sensorDataQueue");
+        } else {
+            ESP_LOGI(TAG, "Received from sensorDataQueue");
+        }
+
+        strcpy(json_string, "{");
+        snprintf(buffer, sizeof(buffer), "\"humidity\": %f, ", data_temp.humidity);
+        strcat(json_string, buffer);
+        snprintf(buffer, sizeof(buffer), "\"temperature\": %f ", data_temp.temperature);
+        strcat(json_string, buffer);
+        strcat(json_string, "}");
     
-    if(timeout_counter == connection_timeout) return -1;
-
-    for(int i = 0; i < 5; i++)
-    {
-        for(int j = 0; j < 8; j++)
+        cJSON *json_temp = cJSON_Parse(json_string);
+        ESP_LOGI(TAG, "json: %s", json_string);
+    
+        http_rest_recv_json_t response_buffer = {0};
+    
+        ESP_LOGI(TAG, "Sending Data to URL: %s", URL);
+        ret = http_rest_client_post_json_mine(URL, json_temp, &response_buffer);
+        int status_code = response_buffer.status_code;
+    
+        if (ret != ESP_OK)
         {
-            zero_duration = wait_for_state(*dht11,1,58);
-            one_duration = wait_for_state(*dht11,0,74);
-            received_data[i] |= (one_duration > ZERO_TIMESTAMP) << (7 - j);
+          ESP_LOGE(TAG, "HTTP POST request failed: %s", esp_err_to_name(ret));
+          http_rest_client_cleanup_json(&response_buffer);
+        }
+        else
+        {
+    
+          if (status_code != 201)
+          {
+            ESP_LOGE(TAG, "HTTP POST request failed with status code: %d", status_code);
+            http_rest_client_cleanup_json(&response_buffer);
+          }
+          else
+          {
+            char *jsonString = cJSON_Print(response_buffer.json);
+            ESP_LOGI(TAG, "Response: %s", jsonString);
+    
+            free(jsonString);
+            http_rest_client_cleanup_json(&response_buffer);
+          }
         }
     }
-    
-    int crc = received_data[0]+received_data[1]+received_data[2]+received_data[3];
-    crc = crc & 0xff;
 
-    if(crc == received_data[4]) {
-        dht11->humidity = received_data[0] + received_data[1] / 10.0;
-        dht11->temperature = received_data[2] + received_data[3] / 10.0;
-      return 0;
-    }
-    else {
-        ESP_LOGE("DHT11:", "Wrong checksum");
-        return -1;
-    }
-    return 0;
-}
+};
 
 void app_main(void)
 {
@@ -223,69 +193,11 @@ void app_main(void)
 
   ESP_LOGI(TAG, "WiFi connected");
 
-  ESP_LOGI(TAG, "Starting Main Loop...");
+  ESP_LOGI(TAG, "Starting Two tasks");
 
-  char json_string[256];
-  char buffer[50];
-  int return_value = -1;
+  sensorDataQueue = xQueueCreate(1, sizeof(sensor_data));
 
-  set_output();
+  xTaskCreate( vDhtTask, "Dht Task", 10000, NULL, 2, NULL );
+  xTaskCreate( vHttpTask, "Http Task", 10000, NULL, 1, NULL );
 
-  dht11_t data = {
-      .dht11_pin = DHT11_PIN,
-      .humidity = 0,
-      .temperature = 0
-  };
-
-  while (1)
-  {
-    return_value = dht11_read(&data, 1000);
-    while (return_value == -1) {
-        vTaskDelay(pdMS_TO_TICKS( 1000 ));
-        return_value = dht11_read(&data, 1000);
-    }
-
-    ESP_LOGI(TAG, "Humidity: %.2f, Temperature: %.2f", data.humidity, data.temperature);
-
-    strcpy(json_string, "{");
-    snprintf(buffer, sizeof(buffer), "\"humidity\": %f, ", data.humidity);
-    strcat(json_string, buffer);
-    snprintf(buffer, sizeof(buffer), "\"temperature\": %f ", data.temperature);
-    strcat(json_string, buffer);
-    strcat(json_string, "}");
-
-    cJSON *json_temp = cJSON_Parse(json_string);
-    ESP_LOGI(TAG, "json: %s", json_string);
-
-    http_rest_recv_json_t response_buffer = {0};
-
-    ESP_LOGI(TAG, "Sending Data to URL: %s", URL);
-    ret = http_rest_client_post_json_mine(URL, json_temp, &response_buffer);
-    int status_code = response_buffer.status_code;
-
-    if (ret != ESP_OK)
-    {
-      ESP_LOGE(TAG, "HTTP POST request failed: %s", esp_err_to_name(ret));
-      http_rest_client_cleanup_json(&response_buffer);
-    }
-    else
-    {
-
-      if (status_code != 201)
-      {
-        ESP_LOGE(TAG, "HTTP POST request failed with status code: %d", status_code);
-        http_rest_client_cleanup_json(&response_buffer);
-      }
-      else
-      {
-        char *jsonString = cJSON_Print(response_buffer.json);
-        ESP_LOGI(TAG, "Response: %s", jsonString);
-
-        free(jsonString);
-        http_rest_client_cleanup_json(&response_buffer);
-      }
-    }
-    ESP_LOGI(TAG, "Looping in 30 seconds...");
-    vTaskDelay(pdMS_TO_TICKS( 30000 ));
-  }
 }
