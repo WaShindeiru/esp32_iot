@@ -30,7 +30,7 @@ docker compose up
 ```bash
 cd dht11-http
 ```
-- modify the following defines. `SERVER_IP` is the IP address of the go server. `WIFI_SSID` and `WIFI_PASSWORD` are the wifi network credentials.
+- in `dht11-http.c` modify the following defines. `SERVER_IP` is the IP address of the go server. `WIFI_SSID` and `WIFI_PASSWORD` are the wifi network credentials.
 ```c
 #define SERVER_IP "192.168.0.145"
 #define WIFI_SSID "ssid"
